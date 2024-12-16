@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="warehouseApp">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NextGen Depot</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.3.2/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    
+</head>
+<body ng-controller="MainController" class="bg-gray-100">
+    <nav class="bg-blue-600 p-4 sticky top-0 z-50">
+        <div class="container mx-auto flex justify-between items-center">
+            <a href="#" class="text-4xl font-bold text-white hover:text-yellow-200">NextGen Depot</a>
+            <div class="hidden md:flex space-x-4">
+                <a href="#" ng-click="setCurrentPage('dashboard')" class="text-white hover:text-yellow-200">Dashboard</a>
+                <a href="#" ng-click="setCurrentPage('inventory')" class="text-white hover:text-yellow-200">Inventory</a>
+                <a href="#" ng-click="setCurrentPage('orders')" class="text-white hover:text-yellow-200">Orders</a>
+                <a href="#" ng-click="setCurrentPage('analytics')" class="text-white hover:text-yellow-200">Analytics</a>
+                <a href="#" ng-click="setCurrentPage('ar-navigation')" class="text-white hover:text-yellow-200">AR Navigation</a>
+                <a href="#" ng-click="setCurrentPage('blockchain')" class="text-white hover:text-yellow-200">Blockchain</a>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="voiceControlBtn" class="bg-white text-blue-600 px-4 py-2 rounded hover:bg-yellow-300">
+                    <i class="fas fa-microphone"></i> Voice Control
+                </button>
+                <button id="loginBtn" class="bg-white text-blue-600 px-4 py-2 rounded hover:bg-yellow-300">Login</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 py-8">
+        <div ng-switch="currentPage">
+            <div ng-switch-when="dashboard" ng-controller="DashboardController">
+                <h2 class="text-2xl font-bold mb-4">AI-Powered Dashboard</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
+                    <div class="bg-white p-6 rounded-lg shadow-md" ng-repeat="stat in stats">
+                        <h3 class="text-lg font-semibold mb-2">{{ stat.title }}</h3>
+                        <p class="text-3xl font-bold">{{ stat.value }}</p>
+                        <p class="text-sm text-gray-500">{{ stat.description }}</p>
+                    </div>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+                    <h3 class="text-xl font-semibold mb-4">AI Demand Forecast</h3>
+                    <canvas id="demandForecastChart"></canvas>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold mb-4">Real-time Inventory Alerts</h3>
+                    <ul id="realTimeAlerts">
+                        <!-- Real-time alerts will be populated here -->
+                    </ul>
+                </div>
+            </div>
+
+            <div ng-switch-when="inventory" ng-controller="InventoryController">
+                <h2 class="text-2xl font-bold mb-4">IoT-Enabled Inventory Management</h2>
+                <div class="mb-4 flex justify-between items-center">
+                    <input type="text" ng-model="inventorySearch" placeholder="Search inventory..." class="px-2 py-1 rounded">
+                    <button ng-click="syncIoTDevices()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Sync IoT Devices</button>
+                </div>
+                <table class="w-full bg-white shadow-md rounded-lg overflow-hidden">
+                    <thead class="bg-gray-200">
+                        <tr>
+                            <th class="text-left p-3">Item</th>
+                            <th class="text-left p-3">Category</th>
+                            <th class="text-left p-3">Stock</th>
+                            <th class="text-left p-3">Price</th>
+                            <th class="text-left p-3">IoT Status</th>
+                            <th class="text-left p-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr ng-repeat="item in inventory | filter:inventorySearch" class="border-b">
+                            <td class="p-3">{{ item.name }}</td>
+                            <td class="p-3">{{ item.category }}</td>
+                            <td class="p-3">{{ item.stock }}</td>
+                            <td class="p-3">${{ item.price.toFixed(2) }}</td>
+                            <td class="p-3">
+                                <span class="px-2 py-1 rounded text-white" ng-class="{'bg-green-500': item.iotStatus === 'Connected', 'bg-red-500': item.iotStatus === 'Disconnected'}">
+                                    {{ item.iotStatus }}
+                                </span>
+                            </td>
+                            <td class="p-3">
+                                <button ng-click="editItem(item)" class="bg-yellow-500 text-white px-2 py-1 rounded mr-2">Edit</button>
+                                <button ng-click="viewItemHistory(item)" class="bg-blue-500 text-white px-2 py-1 rounded">History</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div ng-switch-when="orders" ng-controller="OrdersController">
+                <h2 class="text-2xl font-bold mb-4">Intelligent Order Management</h2>
+                <div class="mb-4 flex justify-between items-center">
+                    <input type="text" ng-model="orderSearch" placeholder="Search orders..." class="px-2 py-1 rounded">
+                    <button ng-click="optimizeShipping()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">AI Shipping Optimization</button>
+                </div>
+                <table class="w-full bg-white shadow-md rounded-lg overflow-hidden">
+                    <thead class="bg-gray-200">
+                        <tr>
+                            <th class="text-left p-3">Order ID</th>
+                            <th class="text-left p-3">Customer</th>
+                            <th class="text-left p-3">Date</th>
+                            <th class="text-left p-3">Total</th>
+                            <th class="text-left p-3">Status</th>
+                            <th class="text-left p-3">Predicted Delivery</th>
+                            <th class="text-left p-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr ng-repeat="order in orders | filter:orderSearch" class="border-b">
+                            <td class="p-3">{{ order.id }}</td>
+                            <td class="p-3">{{ order.customer }}</td>
+                            <td class="p-3">{{ order.date }}</td>
+                            <td class="p-3">${{ order.total.toFixed(2) }}</td>
+                            <td class="p-3">
+                                <span class="px-2 py-1 rounded text-white" ng-class="{
+                                    'bg-blue-500': order.status === 'Shipped',
+                                    'bg-yellow-500': order.status === 'Processing',
+                                    'bg-green-500': order.status === 'Delivered',
+                                    'bg-red-500': order.status === 'Pending'
+                                }">{{ order.status }}</span>
+                            </td>
+                            <td class="p-3">{{ order.predictedDelivery }}</td>
+                            <td class="p-3">
+                                <button ng-click="viewOrderDetails(order)" class="bg-blue-500 text-white px-2 py-1 rounded mr-2">View</button>
+                                <button ng-click="trackOrder(order)" class="bg-green-500 text-white px-2 py-1 rounded">Track</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div ng-switch-when="analytics" ng-controller="AnalyticsController">
+                <h2 class="text-2xl font-bold mb-4">Advanced Analytics & Machine Learning Insights</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-semibold mb-4">Predictive Sales Trend</h3>
+                        <canvas id="predictiveSalesChart"></canvas>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-semibold mb-4">Inventory Optimization</h3>
+                        <canvas id="inventoryOptimizationChart"></canvas>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-semibold mb-4">Customer Segmentation</h3>
+                        <canvas id="customerSegmentationChart"></canvas>
+                    </div>
+                    <div class="bg-white p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-semibold mb-4">Anomaly Detection</h3>
+                        <canvas id="anomalyDetectionChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div ng-switch-when="ar-navigation" ng-controller="ARNavigationController">
+                <h2 class="text-2xl font-bold mb-4">Augmented Reality Warehouse Navigation</h2>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <a-scene embedded>
+                        <a-box position="-1 0.5 -3" rotation="0 45 0" color="#4CC3D9"></a-box>
+                        <a-sphere position="0 1.25 -5" radius="1.25" color="#EF2D5E"></a-sphere>
+                        <a-cylinder position="1 0.75 -3" radius="0.5" height="1.5" color="#FFC65D"></a-cylinder>
+                        <a-plane position="0 0 -4" rotation="-90 0 0" width="4" height="4" color="#7BC8A4"></a-plane>
+                        <a-sky color="#ECECEC"></a-sky>
+                    </a-scene>
+                    <p class="mt-4">Use your device's camera to navigate the warehouse. AR markers will guide you to specific inventory locations.</p>
+                </div>
+            </div>
+
+            <div ng-switch-when="blockchain" ng-controller="BlockchainController">
+                <h2 class="text-2xl font-bold mb-4">Blockchain Supply Chain Transparency</h2>
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-xl font-semibold mb-4">Recent Transactions</h3>
+                    <ul id="blockchainTransactions">
+                        <!-- Blockchain transactions will be populated here -->
+                    </ul>
+                    <button ng-click="verifySupplyChain()" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Verify Supply Chain</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-gray-800 text-white mt-12 py-8">
+        <div class="container mx-auto px-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                    <h3 class="text-xl font-semibold mb-4">Quick Links</h3>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="hover:text-gray-300">Dashboard</a></li>
+                        <li><a href="#" class="hover:text-gray-300">Inventory</a></li>
+                        <li><a href="#" class="hover:text-gray-300">Orders</a></li>
+                        <li><a href="#" class="hover:text-gray-300">Analytics</a></li>
+                        <li><a href="#" class="hover:text-gray-300">AR Navigation</a></li>
+                        <li><a href="#" class="hover:text-gray-300">Blockchain</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-4">Support</h3>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="hover:text-gray-300">Help Center</a></li>
+                        <li><a href="#" class="hover:text-gray-300">Documentation</a></li>
+                        <li><a href="#" class="hoverli><a href="#" class="hover:text-gray-300">API Documentation</a></li>
+                        <li><a href="#" class="hover:text-gray-300">Contact Us</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-4">Legal</h3>
+                    <ul class="space-y-2">
+                        <li><a href="#" class="hover:text-gray-300">Terms of Service</a></li>
+                        <li><a href="#" class="hover:text-gray-300">Privacy Policy</a></li>
+                        <li><a href="#" class="hover:text-gray-300">Security</a></li>
+                        <li><a href="#" class="hover:text-gray-300">GDPR Compliance</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="text-xl font-semibold mb-4">Newsletter</h3>
+                    <p class="mb-2">Stay updated with our latest features and news.</p>
+                    <form id="newsletterForm">
+                        <input type="email" id="newsletterEmail" placeholder="Your email address" class="px-2 py-1 rounded mb-2 text-black w-full">
+                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 w-full">Subscribe</button>
+                    </form>
+                </div>
+            </div>
+            <div class="mt-8 text-center">
+                <p>&copy; 2023 WarehouseHub. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        var app = angular.module('warehouseApp', []);
+
+        app.controller('MainController', function($scope) {
+            $scope.currentPage = 'dashboard';
+            $scope.setCurrentPage = function(page) {
+                $scope.currentPage = page;
+            };
+        });
+
+        app.controller('DashboardController', function($scope) {
+            $scope.stats = [
+                { title: 'Total Inventory', value: '1,500', description: 'items in stock' },
+                { title: 'Active Orders', value: '25', description: 'being processed' },
+                { title: 'Revenue', value: '$45,000', description: 'this month' },
+                { title: 'AI Efficiency Gain', value: '15%', description: 'vs. last month' }
+            ];
+
+            // Simulated AI Demand Forecast
+            setTimeout(function() {
+                var ctx = document.getElementById('demandForecastChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+                        datasets: [{
+                            label: 'Forecasted Demand',
+                            data: [1200, 1350, 1100, 1500],
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }, 0);
+
+            // Simulated Real-time Inventory Alerts
+            var socket = io('http://localhost:3000');
+            socket.on('inventoryAlert', function(data) {
+                $('#realTimeAlerts').prepend('<li>' + data.message + '</li>');
+            });
+        });
+
+        app.controller('InventoryController', function($scope) {
+    $scope.inventory = [
+        { id: 1, name: 'Widget A', category: 'Electronics', stock: 50, price: 1999, iotStatus: 'Connected' },
+        { id: 2, name: 'Gadget B', category: 'Electronics', stock: 30, price: 2999, iotStatus: 'Connected' },
+        { id: 3, name: 'Tool C', category: 'Hardware', stock: 100, price: 999, iotStatus: 'Disconnected' },
+        { id: 4, name: 'Part D', category: 'Automotive', stock: 200, price: 599, iotStatus: 'Connected' },
+        { id: 5, name: 'Supply E', category: 'Office', stock: 500, price: 299, iotStatus: 'Connected' },
+        { id: 6, name: 'Gadget F', category: 'Electronics', stock: 25, price: 3999, iotStatus: 'Disconnected' },
+        { id: 7, name: 'Accessory G', category: 'Fashion', stock: 300, price: 799, iotStatus: 'Connected' },
+        { id: 8, name: 'Equipment H', category: 'Fitness', stock: 75, price: 4999, iotStatus: 'Connected' },
+        { id: 9, name: 'Device I', category: 'Electronics', stock: 40, price: 2499, iotStatus: 'Disconnected' },
+        { id: 10, name: 'Component J', category: 'Automotive', stock: 150, price: 699, iotStatus: 'Connected' }
+    ];
+
+    // Function to format the price in Indian currency
+    $scope.formatCurrency = function(amount) {
+        return '₹' + amount.toLocaleString('en-IN');
+    };
+
+
+            $scope.syncIoTDevices = function() {
+                $scope.inventory.forEach(function(item) {
+                    item.iotStatus = Math.random() > 0.1 ? 'Connected' : 'Disconnected';
+                });
+                alert('IoT devices synchronized successfully!');
+            };
+
+            $scope.editItem = function(item) {
+                var newStock = prompt("Enter new stock for " + item.name + ":", item.stock);
+                if (newStock !== null) {
+                    item.stock = parseInt(newStock, 10);
+                }
+            };
+
+            $scope.viewItemHistory = function(item) {
+                alert("Viewing history for " + item.name + "\nFeature under development.");
+            };
+        });
+
+        app.controller('OrdersController', function($scope) {
+            $scope.orders = [
+                { id: 1001, customer: 'Akshaya', date: '2024-05-01', total: 1250.00, status: 'Shipped', predictedDelivery: '2024-05-05' },
+                { id: 1002, customer: 'ARunthathi', date: '2024-05-02', total: 750.50, status: 'Processing', predictedDelivery: '2024-05-07' },
+                { id: 1003, customer: 'Sri Ram', date: '2024-05-03', total: 2100.75, status: 'Delivered', predictedDelivery: '2024-05-06' },
+                { id: 1004, customer: 'Mahindran', date: '2024-05-04', total: 500.25, status: 'Pending', predictedDelivery: '2024-05-09' },
+                { id: 1005, customer: 'Vagetha', date: '2024-05-05', total: 1800.00, status: 'Shipped', predictedDelivery: '2024-05-08' }
+            ];
+
+            $scope.optimizeShipping = function() {
+                alert('AI is optimizing shipping routes and schedules...');
+                $scope.orders.forEach(function(order) {
+                    var daysToSubtract = Math.floor(Math.random() * 2) + 1;
+                    var currentDate = new Date(order.predictedDelivery);
+                    currentDate.setDate(currentDate.getDate() - daysToSubtract);
+                    order.predictedDelivery = currentDate.toISOString().split('T')[0];
+                });
+                alert('Shipping optimization complete. Delivery dates updated.');
+            };
+
+            $scope.viewOrderDetails = function(order) {
+                alert('Order Details for Order ID: ' + order.id + '\nCustomer: ' + order.customer + '\nTotal: $' + order.total.toFixed(2) + '\nStatus: ' + order.status);
+            };
+
+            $scope.trackOrder = function(order) {
+                alert('Tracking information for Order ID: ' + order.id + '\nCurrent Status: ' + order.status + '\nEstimated Delivery: ' + order.predictedDelivery);
+            };
+        });
+
+        app.controller('AnalyticsController', function($scope) {
+            setTimeout(function() {
+                // Predictive Sales Trend
+                var salesCtx = document.getElementById('predictiveSalesChart').getContext('2d');
+                new Chart(salesCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
+                        datasets: [{
+                            label: 'Actual Sales',
+                            data: [12, 19, 15, 22, 25, 30, 35, 38],
+                            borderColor: 'rgb(75, 192, 192)',
+                            tension: 0.1
+                        }, {
+                            label: 'Predicted Sales',
+                            data: [null, null, null, null, null, null, 40, 45],
+                            borderColor: 'rgb(255, 99, 132)',
+                            borderDash: [5, 5],
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+
+                // Inventory Optimization
+                var inventoryCtx = document.getElementById('inventoryOptimizationChart').getContext('2d');
+                new Chart(inventoryCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Electronics', 'Hardware', 'Automotive', 'Office'],
+                        datasets: [{
+                            label: 'Current Stock',
+                            data: [100, 150, 200, 300],
+                            backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                        }, {
+                            label: 'Optimal Stock',
+                            data: [80, 120, 180, 250],
+                            backgroundColor: 'rgba(255, 99, 132, 0.6)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+
+                // Customer Segmentation
+                var segmentationCtx = document.getElementById('customerSegmentationChart').getContext('2d');
+                new Chart(segmentationCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['High Value', 'Medium Value', 'Low Value', 'At Risk'],
+                        datasets: [{
+                            data: [30, 40, 20, 10],
+                            backgroundColor: [
+                                'rgba(75, 192, 192, 0.8)',
+                                'rgba(255, 206, 86, 0.8)',
+                                'rgba(54, 162, 235, 0.8)',
+                                'rgba(255, 99, 132, 0.8)'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true
+                    }
+                });
+
+                // Anomaly Detection
+                var anomalyCtx = document.getElementById('anomalyDetectionChart').getContext('2d');
+                new Chart(anomalyCtx, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [{
+                            label: 'Normal Data',
+                            data: Array.from({length: 50}, () => ({
+                                x: Math.random() * 100,
+                                y: Math.random() * 100
+                            })),
+                            backgroundColor: 'rgba(75, 192, 192, 0.6)'
+                        }, {
+                            label: 'Anomalies',
+                            data: [
+                                {x: 20, y: 90},
+                                {x: 80, y: 10},
+                                {x: 95, y: 95}
+                            ],
+                            backgroundColor: 'rgba(255, 99, 132, 0.8)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                position: 'bottom'
+                            },
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }, 0);
+        });
+
+        app.controller('ARNavigationController', function($scope) {
+            // AR Navigation logic to be implemented
+            $scope.startARNavigation = function() {
+                alert('AR Navigation feature is under development. Please check back soon!');
+            };
+        });
+
+        app.controller('BlockchainController', function($scope) {
+            // Simulated blockchain transactions
+            var transactions = [
+                { id: 'tx001', from: 'Supplier A', to: 'WarehouseHub', amount: 1000, timestamp: '2023-05-01 10:30:00' },
+                { id: 'tx002', from: 'WarehouseHub', to: 'Retailer B', amount: 500, timestamp: '2023-05-02 14:45:00' },
+                { id: 'tx003', from: 'Supplier C', to: 'WarehouseHub', amount: 750, timestamp: '2023-05-03 09:15:00' }
+            ];
+
+            transactions.forEach(function(tx) {
+                $('#blockchainTransactions').append(
+                    '<li class="mb-2">' +
+                    '<strong>Transaction ID:</strong> ' + tx.id + '<br>' +
+                    '<strong>From:</strong> ' + tx.from + '<br>' +
+                    '<strong>To:</strong> ' + tx.to + '<br>' +
+                    '<strong>Amount:</strong> $' + tx.amount + '<br>' +
+                    '<strong>Timestamp:</strong> ' + tx.timestamp +
+                    '</li>'
+                );
+            });
+
+            $scope.verifySupplyChain = function() {
+                alert('Verifying supply chain integrity using blockchain...');
+                setTimeout(function() {
+                    alert('Supply chain verified. All transactions are valid and tamper-proof.');
+                }, 2000);
+            };
+        });
+
+        // WebSocket for real-time updates (simulated)
+        var socket = io('http://localhost:3000');
+        socket.on('inventoryUpdate', function(data) {
+            // Update inventory in real-time
+            var scope = angular.element(document.getElementById('inventoryController')).scope();
+            var item = scope.inventory.find(i => i.id === data.id);
+            if (item) {
+                item.stock = data.newStock;
+                scope.$apply();
+            }
+        });
+
+        // Voice control initialization (simulated)
+        $('#voiceControlBtn').click(function() {
+            if ('webkitSpeechRecognition' in window) {
+                var recognition = new webkitSpeechRecognition();
+                recognition.continuous = true;
+                recognition.interimResults = true;
+
+                recognition.onresult = function(event) {
+                    var final_transcript = '';
+                    for (var i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            final_transcript += event.results[i][0].transcript;
+                        }
+                    }
+                    if (final_transcript.toLowerCase().includes('go to dashboard')) {
+                        angular.element(document.body).scope().setCurrentPage('dashboard');
+                        angular.element(document.body).scope().$apply();
+                    }
+                    // Add more voice commands as needed
+                };
+
+                recognition.start();
+                alert('Voice control activated. Try saying "Go to Dashboard"');
+            } else {
+                alert('Voice control is not supported in your browser.');
+            }
+        });
+
+        // Login functionality
+        $('#loginBtn').click(function() {
+            var username = prompt("Enter your username:");
+            var password = prompt("Enter your password:");
+            if (username && password) {
+                // Here you would typically send these credentials to a server for verification
+                alert('Login successful! Welcome, ' + username + '!');
+            } else {
+                alert('Login cancelled or invalid credentials.');
+            }
+        });
+
+        // AI-powered chatbot (simulated)
+        function initChatbot() {
+            var chatbotButton = $('<button>')
+                .text('AI Assistant')
+                .addClass('fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700')
+                .click(function() {
+                    var userInput = prompt('How can I assist you today?');
+                    if (userInput) {
+                        // Simulate AI response
+                        setTimeout(function() {
+                            alert('AI Assistant: Based on your question "' + userInput + '", I recommend checking the inventory levels of our top-selling items.');
+                        }, 1000);
+                    }
+                });
+            $('body').append(chatbotButton);
+        }
+
+        $(document).ready(function() {
+            initChatbot();
+
+            // Example of using jQuery for AJAX
+            $('.sync-inventory').click(function() {
+                $.ajax({
+                    url: 'api/sync-inventory',
+                    method: 'POST',
+                    success: function(response) {
+                        console.log('Inventory synced:', response);
+                        alert('Inventory successfully synchronized with IoT devices');
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Error syncing inventory:', error);
+                        alert('Error synchronizing inventory. Please try again.');
+                    }
+                });
+            });
+
+            // Initialize TensorFlow.js model (simulated)
+            async function loadTFModel() {
+                const model = await tf.loadLayersModel('path/to/tfjs_model/model.json');
+                console.log('TensorFlow.js model loaded successfully');
+                return model;
+            }
+
+            loadTFModel().then(model => {
+                // Use the model for predictions
+                console.log('AI model ready for predictions');
+            }).catch(error => {
+                console.error('Error loading TensorFlow.js model:', error);
+            });
+
+            // Newsletter subscription
+            $('#newsletterForm').submit(function(e) {
+                e.preventDefault();
+                var email = $('#newsletterEmail').val();
+                if (email) {
+                    alert('Thank you for subscribing to our newsletter with email: ' + email);
+                    $('#newsletterEmail').val('');
+                } else {
+                    alert('Please enter a valid email address.');
+                }
+            });
+        });
+        
+    </script>
+</body>
+</html>
